@@ -32,16 +32,16 @@ impl Actor {
     pub fn update(&mut self, delta_time: f32) {
         self.pos += self.velocity * delta_time;
 
-        if self.pos.x < -20.0 {
+        if self.pos.x < -800.0 {
             self.dead = true;
         }
-        if self.pos.x > 1300.0 {
+        if self.pos.x > 800.0 {
             self.dead = true;
         }
-        if self.pos.y < -20.0 {
+        if self.pos.y < -800.0 {
             self.dead = true;
         }
-        if self.pos.y > 740.0 {
+        if self.pos.y > 800.0 {
             self.dead = true;
         }
     }
@@ -80,6 +80,14 @@ impl MainState {
         };
         Ok(s)
     }
+
+    fn collision(line_end: &Point2, circle_center: &Point2, circle_radius: f32) -> bool {
+        let sq_distance = (line_end.x - circle_center.x).powf(2.0) + (line_end.y - circle_center.y).powf(2.0);
+        if sq_distance < 1000.0 {
+            println!("Close!");
+        }
+        sq_distance <= circle_radius.powf(2.0)
+    }
 }
 
 impl event::EventHandler for MainState {
@@ -94,11 +102,11 @@ impl event::EventHandler for MainState {
             if self.firing && self.next_shot_timeout <= 0.0 {
                 let vec_to_mouse = Vector2::new(
                     self.mouse_position.0 as f32 - 640.0,
-                    self.mouse_position.1 as f32 - 320.0
+                    self.mouse_position.1 as f32 - 360.0
                 );
                 let laser = Actor {
                     tag: ActorType::Laser,
-                    pos: Point2::new(640.0, 360.0),
+                    pos: Point2::new(0.0, 0.0),
                     velocity: vec_to_mouse.normalize() * 300.0,
                     dead: false,
                 };
@@ -110,30 +118,43 @@ impl event::EventHandler for MainState {
                 let mut rng = thread_rng();
                 let random_angle: f32 = rng.gen_range(0.0, 360.0);
                 let enemy_pos = Point2::new(
-                    640.0 + 670.0 * random_angle.cos(),
-                    360.0 + 670.0 * random_angle.sin()
+                    670.0 * random_angle.cos(),
+                    670.0 * random_angle.sin()
                 );
 
                 let enemy = Actor {
                     tag: ActorType::Enemy,
                     pos: enemy_pos,
-                    velocity: Vector2::new(-enemy_pos.x, -enemy_pos.y),
+                    velocity: Vector2::new(-enemy_pos.x, -enemy_pos.y).normalize() * 100.0,
                     dead: false
                 };
                 self.enemies.push(enemy);
                 self.next_enemy_timeout = 1.0;
             }
 
+            // Move all entities
             for laser in &mut self.lasers {
                 laser.update(seconds);
             }
-
             for enemy in &mut self.enemies {
                 enemy.update(seconds);
+            }
+
+            // Check collisions (this might be fun)
+            for laser in &mut self.lasers {
+                for enemy in &mut self.enemies {
+                    let colliding = MainState::collision(&laser.pos, &enemy.pos, 16.0);
+                    if colliding {
+                        enemy.dead = true;
+                        laser.dead = true;
+                        continue;                        
+                    }
+                }
             }
         }
 
         self.lasers.retain(|ref laser| !laser.dead);
+        self.enemies.retain(|ref enemy| !enemy.dead);
 
         Ok(())
     }
@@ -164,10 +185,12 @@ impl event::EventHandler for MainState {
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
         graphics::clear(ctx);
 
+        let center_offset = Vector2::new(640.0, 360.0);
+
         graphics::circle(
             ctx,
             DrawMode::Fill,
-            self.player.pos,
+            self.player.pos + center_offset,
             32.0,
             0.5,
         )?;
@@ -178,7 +201,8 @@ impl event::EventHandler for MainState {
             let end_point = start_point + laser.velocity.normalize() * 16.0;
 
             let line_points: [Point2; 2] = [
-                start_point, end_point
+                start_point + center_offset, 
+                end_point + center_offset
             ]; 
 
             graphics::line(ctx, &line_points[..], 2.0)?;
@@ -189,7 +213,7 @@ impl event::EventHandler for MainState {
             graphics::circle(
                 ctx,
                 DrawMode::Fill,
-                enemy.pos,
+                enemy.pos + center_offset,
                 10.0,
                 1.0
             )?;
@@ -201,8 +225,8 @@ impl event::EventHandler for MainState {
 }
 
 fn main() {
-    let mut cb = ContextBuilder::new("ez_game_ez_life", "ggez")
-        .window_setup(conf::WindowSetup::default().title("EZ Game EZ Life"))
+    let mut cb = ContextBuilder::new("spaced_out", "ggez")
+        .window_setup(conf::WindowSetup::default().title("Spaced Out"))
         .window_mode(conf::WindowMode::default().dimensions(1280, 720));
 
     // Add top level resources directory to path
