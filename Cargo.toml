@@ -1,0 +1,8 @@
+[package]
+name = "spaced_out"
+version = "0.1.0"
+authors = ["Philip Taylor <myranth336@gmail.com>"]
+
+[dependencies]
+ggez = "0.4"
+rand = "0.5"
