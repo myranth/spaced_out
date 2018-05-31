@@ -1,6 +1,10 @@
 extern crate ggez;
 extern crate rand;
 
+mod gui;
+
+use gui::GUI;
+
 use std::env;
 use std::path;
 
@@ -56,11 +60,12 @@ struct MainState {
     firing: bool,
     next_shot_timeout: f32,
     next_enemy_timeout: f32,
-    mouse_position: (i32, i32)
+    mouse_position: (i32, i32),
+    gui: GUI,
 }
 
 impl MainState {
-    fn new(_ctx: &mut Context) -> GameResult<MainState> {
+    fn new(ctx: &mut Context) -> GameResult<MainState> {
         let s = MainState {
             player: create_player(),
             enemies: Vec::new(),
@@ -69,6 +74,7 @@ impl MainState {
             next_shot_timeout: 0.0,
             next_enemy_timeout: 0.0,
             mouse_position: (0, 0),
+            gui: GUI::new(ctx)?
         };
         Ok(s)
     }
@@ -207,6 +213,9 @@ impl event::EventHandler for MainState {
                 1.0
             )?;
         }
+
+        // GUI
+        self.gui.draw(ctx)?;
 
         graphics::present(ctx);
         Ok(())
