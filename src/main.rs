@@ -25,24 +25,16 @@ struct Actor {
     tag: ActorType,
     pos: Point2,
     velocity: Vector2,
-    dead: bool
+    life: i32,
 }
 
 impl Actor {
     pub fn update(&mut self, delta_time: f32) {
         self.pos += self.velocity * delta_time;
 
-        if self.pos.x < -800.0 {
-            self.dead = true;
-        }
-        if self.pos.x > 800.0 {
-            self.dead = true;
-        }
-        if self.pos.y < -800.0 {
-            self.dead = true;
-        }
-        if self.pos.y > 800.0 {
-            self.dead = true;
+        let distance_from_origin = ((self.pos.x).powf(2.0) + (self.pos.y).powf(2.0)).powf(0.5);
+        if distance_from_origin > 800.0 {
+            self.life = -1;
         }
     }
 }
@@ -52,7 +44,7 @@ fn create_player() -> Actor {
         tag: ActorType::Player,
         pos: Point2::new(0.0, 0.0),
         velocity: Vector2::new(0.0, 0.0),
-        dead: false
+        life: 100
     }
 }
 
@@ -83,9 +75,6 @@ impl MainState {
 
     fn collision(line_end: &Point2, circle_center: &Point2, circle_radius: f32) -> bool {
         let sq_distance = (line_end.x - circle_center.x).powf(2.0) + (line_end.y - circle_center.y).powf(2.0);
-        if sq_distance < 1000.0 {
-            println!("Close!");
-        }
         sq_distance <= circle_radius.powf(2.0)
     }
 }
@@ -108,7 +97,7 @@ impl event::EventHandler for MainState {
                     tag: ActorType::Laser,
                     pos: Point2::new(0.0, 0.0),
                     velocity: vec_to_mouse.normalize() * 300.0,
-                    dead: false,
+                    life: 5,
                 };
                 self.lasers.push(laser);
                 self.next_shot_timeout = 0.3;
@@ -126,7 +115,7 @@ impl event::EventHandler for MainState {
                     tag: ActorType::Enemy,
                     pos: enemy_pos,
                     velocity: Vector2::new(-enemy_pos.x, -enemy_pos.y).normalize() * 100.0,
-                    dead: false
+                    life: 10
                 };
                 self.enemies.push(enemy);
                 self.next_enemy_timeout = 1.0;
@@ -145,16 +134,16 @@ impl event::EventHandler for MainState {
                 for enemy in &mut self.enemies {
                     let colliding = MainState::collision(&laser.pos, &enemy.pos, 16.0);
                     if colliding {
-                        enemy.dead = true;
-                        laser.dead = true;
+                        enemy.life -= 5;
+                        laser.life -= 5;
                         continue;                        
                     }
                 }
             }
         }
 
-        self.lasers.retain(|ref laser| !laser.dead);
-        self.enemies.retain(|ref enemy| !enemy.dead);
+        self.lasers.retain(|ref laser| laser.life > 0);
+        self.enemies.retain(|ref enemy| enemy.life > 0);
 
         Ok(())
     }
