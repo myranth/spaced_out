@@ -62,6 +62,10 @@ struct MainState {
     next_enemy_timeout: f32,
     mouse_position: (i32, i32),
     gui: GUI,
+    score: i32,
+    money: i32,
+    spaceout_charge: i32,
+    spaceout_time: f32
 }
 
 impl MainState {
@@ -74,7 +78,11 @@ impl MainState {
             next_shot_timeout: 0.0,
             next_enemy_timeout: 0.0,
             mouse_position: (0, 0),
-            gui: GUI::new(ctx)?
+            gui: GUI::new(ctx)?,
+            score: 0,
+            money: 100,
+            spaceout_charge: 0,
+            spaceout_time: 0.0
         };
         Ok(s)
     }
@@ -93,6 +101,9 @@ impl event::EventHandler for MainState {
             let seconds = 1.0 / (DESIRED_FPS as f32);
             self.next_shot_timeout -= seconds;
             self.next_enemy_timeout -= seconds;
+            if self.spaceout_time > 0.0 {
+                self.spaceout_time -= seconds;
+            }
 
             if self.firing && self.next_shot_timeout <= 0.0 {
                 let vec_to_mouse = Vector2::new(
@@ -109,7 +120,7 @@ impl event::EventHandler for MainState {
                 self.next_shot_timeout = 0.3;
             }
 
-            if self.next_enemy_timeout <= 0.0 {
+            if self.next_enemy_timeout <= 0.0 && self.spaceout_time <= 0.0 {
                 let mut rng = thread_rng();
                 let random_angle: f32 = rng.gen_range(0.0, 360.0);
                 let enemy_pos = Point2::new(
@@ -127,12 +138,15 @@ impl event::EventHandler for MainState {
                 self.next_enemy_timeout = 1.0;
             }
 
-            // Move all entities
+            // Move entities
             for laser in &mut self.lasers {
                 laser.update(seconds);
             }
-            for enemy in &mut self.enemies {
-                enemy.update(seconds);
+
+            if self.spaceout_time <= 0.0 {
+                for enemy in &mut self.enemies {
+                    enemy.update(seconds);
+                }
             }
 
             // Check collisions (this might be fun)
@@ -148,8 +162,21 @@ impl event::EventHandler for MainState {
             }
         }
 
+        let num_enemies = self.enemies.len();
         self.lasers.retain(|ref laser| laser.life > 0);
         self.enemies.retain(|ref enemy| enemy.life > 0);
+        let num_kills = (num_enemies - self.enemies.len()) as i32;
+        self.score += num_kills * 5;
+        self.money += num_kills * 5;
+        self.spaceout_charge += num_kills * 10;
+        if self.spaceout_charge > 100 {
+            self.spaceout_charge = 100;
+        }
+
+        // Update GUI
+        self.gui.score = self.score;
+        self.gui.money = self.money;
+        self.gui.spaceout_charge = self.spaceout_charge;
 
         Ok(())
     }
@@ -171,10 +198,18 @@ impl event::EventHandler for MainState {
     }
 
     fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, keymod: Mod, repeat: bool) {
+        /*
         println!(
             "Key pressed: {:?}, modifier {:?}, repeat: {}",
             keycode, keymod, repeat
         );
+        */
+        if keycode == Keycode::Space {
+            if self.spaceout_charge == 100 {
+                self.spaceout_time = 5.0;
+                self.spaceout_charge = 0;
+            }
+        }
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult<()> {
