@@ -32,6 +32,55 @@ struct Actor {
     life: i32,
 }
 
+struct Enemy {
+    pos: Point2,
+    direction: Vector2,
+    speed: f32,
+    movement_mod: Option<MovementMod>,
+    life: i32,
+    worth: i32
+}
+
+enum MovementMod {
+    Accelerating(f32), // acceleration
+    Spiral(f32) // Spinniness
+}
+
+impl Enemy {
+    pub fn new(pos: Point2, direction: Vector2, speed: f32, movement_mod: Option<MovementMod>, life: i32, worth: i32) -> Self {
+        Enemy {
+            pos,
+            direction,
+            speed,
+            movement_mod,
+            life,
+            worth
+        }
+    }
+
+    pub fn update(&mut self, delta_time: f32) {
+        if let Some(ref modifier) = self.movement_mod {
+            match modifier {
+                MovementMod::Accelerating(acceleration) => {
+                    self.speed += acceleration;
+                },
+                MovementMod::Spiral(spiral) => {
+                    let to_base = Vector2::new(-self.pos.x, -self.pos.y).normalize();
+                    let perp = Vector2::new(to_base.y, -to_base.x);
+
+                    let new_direction = Vector2::new(
+                        to_base.x + spiral * perp.x,
+                        to_base.y + spiral * perp.y
+                    );
+                    self.direction = new_direction.normalize();
+                }
+            }
+        }
+
+        self.pos += self.direction * self.speed * delta_time;
+    }
+}
+
 impl Actor {
     pub fn update(&mut self, delta_time: f32) {
         self.pos += self.velocity * delta_time;
@@ -55,7 +104,7 @@ fn create_player() -> Actor {
 // All game objects n stuff
 struct MainState {
     lasers: Vec<Actor>,
-    enemies: Vec<Actor>,
+    enemies: Vec<Enemy>,
     player: Actor,
     firing: bool,
     next_shot_timeout: f32,
@@ -128,12 +177,9 @@ impl event::EventHandler for MainState {
                     670.0 * random_angle.sin()
                 );
 
-                let enemy = Actor {
-                    tag: ActorType::Enemy,
-                    pos: enemy_pos,
-                    velocity: Vector2::new(-enemy_pos.x, -enemy_pos.y).normalize() * 100.0,
-                    life: 10
-                };
+                let vec_to_base = Vector2::new(-enemy_pos.x, -enemy_pos.y).normalize();
+                let movement_mod = MovementMod::Spiral(0.99);
+                let enemy = Enemy::new(enemy_pos, vec_to_base, 145.0, Some(movement_mod), 15, 5);
                 self.enemies.push(enemy);
                 self.next_enemy_timeout = 1.0;
             }
