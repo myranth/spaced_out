@@ -197,13 +197,7 @@ impl event::EventHandler for MainState {
         self.mouse_position = (x, y);
     }
 
-    fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, keymod: Mod, repeat: bool) {
-        /*
-        println!(
-            "Key pressed: {:?}, modifier {:?}, repeat: {}",
-            keycode, keymod, repeat
-        );
-        */
+    fn key_down_event(&mut self, _ctx: &mut Context, keycode: Keycode, _keymod: Mod, _repeat: bool) {
         if keycode == Keycode::Space {
             if self.spaceout_charge == 100 {
                 self.spaceout_time = 5.0;
@@ -238,18 +232,44 @@ impl event::EventHandler for MainState {
             graphics::line(ctx, &line_points[..], 2.0)?;
         }
 
-        // Draw enemies
+        // Draw enemies and their healthbars
         for enemy in &self.enemies {
+            let enemy_pos = enemy.pos + center_offset;
+            graphics::set_color(ctx, graphics::Color {
+                r: 1.0,
+                g: 1.0,
+                b: 1.0,
+                a: 1.0
+            })?;
             graphics::circle(
                 ctx,
                 DrawMode::Fill,
-                enemy.pos + center_offset,
+                enemy_pos,
                 10.0,
                 1.0
             )?;
+
+            graphics::set_color(ctx, graphics::Color::new(0.25, 0.25, 0.25, 1.0))?;
+            let healthbar_background = graphics::Rect {
+                x: enemy_pos.x - 16.0,
+                y: enemy_pos.y - 30.0,
+                w: 32.0,
+                h: 8.0
+            };
+
+            graphics::rectangle(
+                ctx, 
+                DrawMode::Fill,
+                healthbar_background
+            )?;
+
+            graphics::set_color(ctx, graphics::Color::new(0.7, 1.0, 0.65, 1.0))?;
+            let healthbar = graphics::Rect::new(enemy_pos.x - 15.0, enemy_pos.y - 29.0, 30.0, 6.0);
+            graphics::rectangle(ctx, DrawMode::Fill, healthbar)?;
         }
 
         // GUI
+        graphics::set_color(ctx, graphics::WHITE)?;
         self.gui.draw(ctx)?;
 
         graphics::present(ctx);
