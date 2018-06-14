@@ -21,7 +21,6 @@ use rand::{thread_rng, Rng};
 enum ActorType {
     Player,
     Laser,
-    Enemy
 }
 
 #[derive(Debug)]
@@ -38,6 +37,7 @@ struct Enemy {
     speed: f32,
     movement_mod: Option<MovementMod>,
     life: i32,
+    max_life: i32,
     worth: i32
 }
 
@@ -49,12 +49,13 @@ enum MovementMod {
 impl Enemy {
     pub fn new(pos: Point2, direction: Vector2, speed: f32, movement_mod: Option<MovementMod>, life: i32, worth: i32) -> Self {
         Enemy {
-            pos,
-            direction,
-            speed,
-            movement_mod,
-            life,
-            worth
+            pos: pos,
+            direction: direction,
+            speed: speed,
+            movement_mod: movement_mod,
+            life: life,
+            max_life: life,
+            worth: worth
         }
     }
 
@@ -69,8 +70,8 @@ impl Enemy {
                     let perp = Vector2::new(to_base.y, -to_base.x);
 
                     let new_direction = Vector2::new(
-                        to_base.x + spiral * perp.x,
-                        to_base.y + spiral * perp.y
+                        (1.0 - spiral) * to_base.x + spiral * perp.x,
+                        (1.0 - spiral)* to_base.y + spiral * perp.y
                     );
                     self.direction = new_direction.normalize();
                 }
@@ -78,6 +79,24 @@ impl Enemy {
         }
 
         self.pos += self.direction * self.speed * delta_time;
+    }
+}
+
+struct Player {
+    life: i32,
+    num_lasers: i32,
+    laser_speed: f32,
+    laser_fire_rate: f32
+}
+
+impl Player {
+    fn new() -> Self {
+        Player {
+            life: 1000,
+            num_lasers: 1,
+            laser_speed: 40.0,
+            laser_fire_rate: 0.5
+        }
     }
 }
 
@@ -92,20 +111,11 @@ impl Actor {
     }
 }
 
-fn create_player() -> Actor {
-    Actor {
-        tag: ActorType::Player,
-        pos: Point2::new(0.0, 0.0),
-        velocity: Vector2::new(0.0, 0.0),
-        life: 100
-    }
-}
-
 // All game objects n stuff
 struct MainState {
     lasers: Vec<Actor>,
     enemies: Vec<Enemy>,
-    player: Actor,
+    player: Player,
     firing: bool,
     next_shot_timeout: f32,
     next_enemy_timeout: f32,
@@ -120,7 +130,7 @@ struct MainState {
 impl MainState {
     fn new(ctx: &mut Context) -> GameResult<MainState> {
         let s = MainState {
-            player: create_player(),
+            player: Player::new(),
             enemies: Vec::new(),
             lasers: Vec::new(),
             firing: false,
@@ -166,7 +176,7 @@ impl event::EventHandler for MainState {
                     life: 5,
                 };
                 self.lasers.push(laser);
-                self.next_shot_timeout = 0.3;
+                self.next_shot_timeout = self.player.laser_fire_rate;
             }
 
             if self.next_enemy_timeout <= 0.0 && self.spaceout_time <= 0.0 {
@@ -178,8 +188,8 @@ impl event::EventHandler for MainState {
                 );
 
                 let vec_to_base = Vector2::new(-enemy_pos.x, -enemy_pos.y).normalize();
-                let movement_mod = MovementMod::Spiral(0.99);
-                let enemy = Enemy::new(enemy_pos, vec_to_base, 145.0, Some(movement_mod), 15, 5);
+                let movement_mod = MovementMod::Spiral(0.8);
+                let enemy = Enemy::new(enemy_pos, vec_to_base, 60.0, Some(movement_mod), 15, 5);
                 self.enemies.push(enemy);
                 self.next_enemy_timeout = 1.0;
             }
@@ -260,7 +270,7 @@ impl event::EventHandler for MainState {
         graphics::circle(
             ctx,
             DrawMode::Fill,
-            self.player.pos + center_offset,
+            Point2::new(center_offset.x, center_offset.y),
             32.0,
             0.5,
         )?;
@@ -281,12 +291,7 @@ impl event::EventHandler for MainState {
         // Draw enemies and their healthbars
         for enemy in &self.enemies {
             let enemy_pos = enemy.pos + center_offset;
-            graphics::set_color(ctx, graphics::Color {
-                r: 1.0,
-                g: 1.0,
-                b: 1.0,
-                a: 1.0
-            })?;
+            graphics::set_color(ctx, graphics::WHITE)?;
             graphics::circle(
                 ctx,
                 DrawMode::Fill,
@@ -297,10 +302,10 @@ impl event::EventHandler for MainState {
 
             graphics::set_color(ctx, graphics::Color::new(0.25, 0.25, 0.25, 1.0))?;
             let healthbar_background = graphics::Rect {
-                x: enemy_pos.x - 16.0,
-                y: enemy_pos.y - 30.0,
-                w: 32.0,
-                h: 8.0
+                x: enemy_pos.x - 24.0,
+                y: enemy_pos.y - 32.0,
+                w: 48.0,
+                h: 10.0
             };
 
             graphics::rectangle(
@@ -310,7 +315,9 @@ impl event::EventHandler for MainState {
             )?;
 
             graphics::set_color(ctx, graphics::Color::new(0.7, 1.0, 0.65, 1.0))?;
-            let healthbar = graphics::Rect::new(enemy_pos.x - 15.0, enemy_pos.y - 29.0, 30.0, 6.0);
+
+            let bar_width = (enemy.life as f32 / enemy.max_life as f32) * 44.0;
+            let healthbar = graphics::Rect::new(enemy_pos.x - 22.0, enemy_pos.y - 30.0, bar_width, 6.0);
             graphics::rectangle(ctx, DrawMode::Fill, healthbar)?;
         }
 
